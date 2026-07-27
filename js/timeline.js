@@ -63,6 +63,9 @@
   var view = { startYear: DATA_MIN, pxPerYear: 0.2, offsetY: 0 };
   var selected = null, hovered = null;
   var searchTerm = "";
+  var cam = null;        // animacion de camara en curso
+  var introT = 0;        // 0..1 fundido de entrada
+  var t0Intro = 0;
 
   var canvas = document.getElementById("timeline");
   var ctx = canvas.getContext("2d");
@@ -87,6 +90,25 @@
   function yearToX(y) { return (y - view.startYear) * view.pxPerYear; }
   function xToYear(x) { return view.startYear + x / view.pxPerYear; }
   function deathOf(p) { return p.d == null ? CURRENT_YEAR : p.d; }
+
+  function minPxPerYear() { return (W - 4) / (DATA_MAX - DATA_MIN); }
+  function clampPx(v) {
+    var mn = minPxPerYear();
+    if (v < mn) return mn;
+    if (v > 45) return 45;
+    return v;
+  }
+  function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+  // Anima la camara (tiempo, zoom y scroll vertical) hacia un destino.
+  function animateTo(startYear, pxPerYear, offsetY, dur) {
+    cam = {
+      sy0: view.startYear, sy1: startYear,
+      px0: view.pxPerYear, px1: clampPx(pxPerYear),
+      oy0: view.offsetY, oy1: offsetY,
+      t0: performance.now(), dur: dur || 550
+    };
+  }
 
   function fmtYear(y) {
     if (y < 0) return Math.abs(y) + " a.C.";
@@ -170,6 +192,23 @@
     for (var i = 0; i < steps.length; i++) if (steps[i] >= raw) return steps[i];
     return 10000;
   }
+  function tickStep() { return niceStep(100 / view.pxPerYear); }
+
+  // color hex -> rgba con alfa
+  function withAlpha(hex, a) {
+    var h = hex.replace("#", "");
+    var r = parseInt(h.substring(0, 2), 16);
+    var g = parseInt(h.substring(2, 4), 16);
+    var b = parseInt(h.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+  function lighten(hex, amt) {
+    var h = hex.replace("#", "");
+    var r = Math.min(255, parseInt(h.substring(0, 2), 16) + amt);
+    var g = Math.min(255, parseInt(h.substring(2, 4), 16) + amt);
+    var b = Math.min(255, parseInt(h.substring(4, 6), 16) + amt);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
 
   function draw() {
     if (dirtyLayout) computeLayout();
@@ -179,17 +218,22 @@
     ctx.clearRect(0, 0, W, H);
     var vpH = viewportHeight();
 
+    drawBackground(vpH);
+
     // clip al area de contenido (encima del minimapa)
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 0, W, vpH);
+    ctx.rect(0, RULER_H, W, vpH - RULER_H);
     ctx.clip();
 
+    ctx.globalAlpha = introT;
     drawEras(vpH);
+    drawGrid(vpH);
     drawEventsBg(vpH);
     drawPeople(vpH);
     drawGroups();
     drawRelations();
+    ctx.globalAlpha = 1;
 
     ctx.restore();
 
@@ -200,23 +244,57 @@
     updateCount();
   }
 
+  // Fondo con gradiente ambiental sutil.
+  function drawBackground(vpH) {
+    var g = ctx.createLinearGradient(0, RULER_H, 0, vpH);
+    g.addColorStop(0, "#161821");
+    g.addColorStop(1, "#0f1016");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, RULER_H, W, vpH - RULER_H);
+    // resplandor central tenue
+    var rg = ctx.createRadialGradient(W * 0.5, vpH * 0.35, 0, W * 0.5, vpH * 0.35, Math.max(W, vpH) * 0.7);
+    rg.addColorStop(0, "rgba(90,120,180,0.06)");
+    rg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, RULER_H, W, vpH - RULER_H);
+  }
+
+  // Rejilla vertical alineada con las marcas de la regla.
+  function drawGrid(vpH) {
+    var step = tickStep();
+    var first = Math.ceil(view.startYear / step) * step;
+    ctx.lineWidth = 1;
+    for (var y = first; ; y += step) {
+      var x = yearToX(y);
+      if (x > W) break;
+      if (x < 0) continue;
+      ctx.strokeStyle = (y % (step * 5) === 0) ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.035)";
+      ctx.beginPath(); ctx.moveTo(x, RULER_H); ctx.lineTo(x, vpH); ctx.stroke();
+    }
+  }
+
   function drawEras(vpH) {
-    eras.forEach(function (e) {
+    eras.forEach(function (e, i) {
       var x0 = yearToX(e.b), x1 = yearToX(e.d);
       if (x1 < 0 || x0 > W) return;
       var cx0 = Math.max(0, x0), cx1 = Math.min(W, x1);
-      ctx.fillStyle = "rgba(179,169,128,0.06)";
+      var g = ctx.createLinearGradient(0, RULER_H, 0, vpH);
+      g.addColorStop(0, withAlpha(e.color, 0.11));
+      g.addColorStop(1, withAlpha(e.color, 0.03));
+      ctx.fillStyle = g;
       ctx.fillRect(cx0, RULER_H, cx1 - cx0, vpH - RULER_H);
-      // bordes
-      ctx.strokeStyle = "rgba(179,169,128,0.18)";
-      ctx.lineWidth = 1;
-      if (x0 >= 0) { ctx.beginPath(); ctx.moveTo(x0, RULER_H); ctx.lineTo(x0, vpH); ctx.stroke(); }
-      // etiqueta vertical
+      // borde izquierdo suave
+      if (x0 >= 0) {
+        ctx.strokeStyle = withAlpha(e.color, 0.35);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x0, RULER_H); ctx.lineTo(x0, vpH); ctx.stroke();
+      }
+      // etiqueta vertical en la banda
       ctx.save();
-      ctx.fillStyle = "rgba(200,190,150,0.5)";
-      ctx.font = "600 11px system-ui, sans-serif";
-      var lx = Math.max(cx0 + 12, 12);
-      ctx.translate(lx, vpH - 12);
+      ctx.fillStyle = withAlpha(e.color, 0.7);
+      ctx.font = "700 11px system-ui, sans-serif";
+      var lx = Math.max(cx0 + 14, 14);
+      ctx.translate(lx, vpH - 14);
       ctx.rotate(-Math.PI / 2);
       ctx.fillText(e.name.toUpperCase(), 0, 0);
       ctx.restore();
@@ -224,16 +302,24 @@
   }
 
   function drawEventsBg(vpH) {
-    ctx.strokeStyle = "rgba(230,120,90,0.28)";
     ctx.lineWidth = 1;
-    ctx.setLineDash([3, 4]);
+    ctx.setLineDash([2, 5]);
     events.forEach(function (ev) {
       var x = yearToX(ev.year);
       if (x < 0 || x > W) return;
+      var g = ctx.createLinearGradient(0, RULER_H, 0, vpH);
+      g.addColorStop(0, "rgba(240,150,110,0.45)");
+      g.addColorStop(1, "rgba(240,150,110,0.05)");
+      ctx.strokeStyle = g;
       ctx.beginPath();
       ctx.moveTo(x, RULER_H);
       ctx.lineTo(x, vpH);
       ctx.stroke();
+      // marcador circular arriba
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f0966e";
+      ctx.beginPath(); ctx.arc(x, RULER_H + 4, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.setLineDash([2, 5]);
     });
     ctx.setLineDash([]);
   }
@@ -241,6 +327,17 @@
   function drawPeople(vpH) {
     var nameFont = "600 12px system-ui, sans-serif";
     var dateFont = "11px system-ui, sans-serif";
+    // La atenuacion del resto solo ocurre al pasar el raton (hover),
+    // no con la seleccion persistente (que solo resalta su barra).
+    var focusMode = !!hovered;
+    var connected = {};
+    if (focusMode) {
+      var f = hovered.name;
+      relations.forEach(function (r) {
+        if (r.a === f) connected[r.b] = 1;
+        if (r.b === f) connected[r.a] = 1;
+      });
+    }
     layout.list.forEach(function (p) {
       var x0 = yearToX(p.b), x1 = yearToX(deathOf(p));
       if (x1 < 0 || x0 > W) return; // culling horizontal
@@ -251,32 +348,56 @@
       var col = CATEGORIES[p.cat].color;
 
       var isSel = p === selected, isHov = p === hovered;
+      var isRel = connected[p.name];
+      var dim = focusMode && !isHov && !isRel && !isSel;
 
-      // barra
-      ctx.fillStyle = col;
-      ctx.globalAlpha = (selected || hovered) && !isSel && !isHov ? 0.85 : 1;
-      rr(x0, barY, bw, BAR_H, 3);
-      ctx.fill();
+      // sombra/glow para el foco
       if (isSel || isHov) {
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 1.5;
-        rr(x0, barY, bw, BAR_H, 3);
-        ctx.stroke();
+        ctx.save();
+        ctx.shadowColor = withAlpha(col, 0.9);
+        ctx.shadowBlur = 16;
+      }
+
+      // barra con degradado vertical
+      var grad = ctx.createLinearGradient(0, barY, 0, barY + BAR_H);
+      grad.addColorStop(0, lighten(col, 40));
+      grad.addColorStop(1, col);
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = dim ? 0.28 : 1;
+      rr(x0, barY, bw, BAR_H, 3.5);
+      ctx.fill();
+      // brillo superior
+      if (!dim && bw > 6) {
+        ctx.globalAlpha = dim ? 0.1 : 0.25;
+        ctx.fillStyle = "#ffffff";
+        rr(x0 + 1, barY + 1, bw - 2, 2.5, 1.5);
+        ctx.fill();
       }
       ctx.globalAlpha = 1;
+
+      if (isSel || isHov) ctx.restore();
+
+      if (isSel || isHov) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        rr(x0, barY, bw, BAR_H, 3.5);
+        ctx.stroke();
+      }
 
       // etiqueta encima de la barra
       var lx = Math.max(x0, 2);
       ctx.font = nameFont;
-      ctx.fillStyle = isSel ? "#fff" : "#e8e9ee";
+      ctx.globalAlpha = dim ? 0.4 : 1;
+      ctx.fillStyle = (isSel || isHov) ? "#ffffff" : "#eceef4";
       ctx.textBaseline = "alphabetic";
       ctx.fillText(p.name, lx, rowTop + 11);
       var nameW = measure(p.name, nameFont);
       ctx.font = dateFont;
-      ctx.fillStyle = "#9aa0aa";
+      ctx.fillStyle = withAlpha(col, dim ? 0.5 : 0.95);
       ctx.fillText("  " + fmtRange(p), lx + nameW, rowTop + 11);
+      ctx.globalAlpha = 1;
 
-      var rect = { p: p, x: x0, y: rowTop, w: Math.max(bw, nameW), h: LANE_H };
+      var rect = { p: p, x: x0, y: rowTop, w: Math.max(bw, nameW + measure("  " + fmtRange(p), dateFont)), h: LANE_H };
       drawn.push(rect);
       drawnByName[p.name] = rect;
     });
@@ -310,9 +431,9 @@
   }
 
   function drawRelations() {
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.4;
     ctx.font = "italic 10px system-ui, sans-serif";
+    var focusName = (selected || hovered) ? (selected || hovered).name : null;
     relations.forEach(function (rel) {
       var ra = drawnByName[rel.a], rb = drawnByName[rel.b];
       if (!ra || !rb) return;
@@ -320,46 +441,60 @@
       var bx = rb.x, by = rb.y + LABEL_LIFT + BAR_H / 2;
       if (bx < ax) { var t = ra; ra = rb; rb = t; ax = ra.x + ra.w; ay = ra.y + LABEL_LIFT + BAR_H / 2; bx = rb.x; by = rb.y + LABEL_LIFT + BAR_H / 2; }
       var midx = (ax + bx) / 2;
+      var hot = focusName && (rel.a === focusName || rel.b === focusName);
+      ctx.strokeStyle = hot ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)";
+      if (hot) { ctx.save(); ctx.shadowColor = "rgba(255,255,255,0.6)"; ctx.shadowBlur = 8; }
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.bezierCurveTo(midx, ay, midx, by, bx, by);
       ctx.stroke();
+      if (hot) ctx.restore();
       if (rel.label) {
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.fillText(rel.label, midx - measure(rel.label, "italic 10px system-ui, sans-serif") / 2, (ay + by) / 2 - 3);
+        var lw = measure(rel.label, "italic 10px system-ui, sans-serif");
+        var mx = midx - lw / 2, my = (ay + by) / 2;
+        ctx.fillStyle = "rgba(12,13,18,0.85)";
+        ctx.fillRect(mx - 3, my - 11, lw + 6, 13);
+        ctx.fillStyle = hot ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)";
+        ctx.fillText(rel.label, mx, my - 1);
       }
     });
   }
 
   function drawRuler() {
-    ctx.fillStyle = "#0f1014";
+    var g = ctx.createLinearGradient(0, 0, 0, RULER_H);
+    g.addColorStop(0, "#0c0d12");
+    g.addColorStop(1, "#12141c");
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, RULER_H);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, RULER_H - 0.5); ctx.lineTo(W, RULER_H - 0.5); ctx.stroke();
 
-    var targetPx = 100;
-    var step = niceStep(targetPx / view.pxPerYear);
+    var step = tickStep();
     var first = Math.ceil(view.startYear / step) * step;
     ctx.textBaseline = "alphabetic";
     for (var y = first; ; y += step) {
       var x = yearToX(y);
       if (x > W) break;
       if (x < 0) continue;
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
-      ctx.beginPath(); ctx.moveTo(x, RULER_H - 12); ctx.lineTo(x, RULER_H); ctx.stroke();
-      ctx.fillStyle = "#c7c9d1";
-      ctx.font = "600 12px system-ui, sans-serif";
+      var major = (y % (step * 5) === 0);
+      ctx.strokeStyle = major ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.16)";
+      ctx.beginPath(); ctx.moveTo(x, RULER_H - (major ? 14 : 9)); ctx.lineTo(x, RULER_H); ctx.stroke();
+      ctx.fillStyle = major ? "#e6e8f0" : "#a6abba";
+      ctx.font = (major ? "700 12px " : "500 11px ") + "system-ui, sans-serif";
       var lbl = fmtYear(y);
-      ctx.fillText(lbl, x - measure(lbl, "600 12px system-ui, sans-serif") / 2, RULER_H - 20);
+      ctx.fillText(lbl, x - measure(lbl, ctx.font) / 2, RULER_H - 20);
     }
-    // linea del anio actual
+    // linea + etiqueta del anio actual
     var nx = yearToX(CURRENT_YEAR);
     if (nx >= 0 && nx <= W) {
-      ctx.strokeStyle = "rgba(120,200,120,0.6)";
+      ctx.strokeStyle = "rgba(110,220,150,0.55)";
       ctx.setLineDash([2, 3]);
       ctx.beginPath(); ctx.moveTo(nx, RULER_H); ctx.lineTo(nx, viewportHeight()); ctx.stroke();
       ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(110,220,150,0.95)";
+      ctx.font = "700 10px system-ui, sans-serif";
+      ctx.fillText("HOY", Math.min(nx + 5, W - 26), RULER_H + 12);
     }
   }
 
@@ -443,15 +578,23 @@
       .map(function (e) { return e.name; });
     var rels = relations.filter(function (r) { return r.a === p.name || r.b === p.name; })
       .map(function (r) { var other = r.a === p.name ? r.b : r.a; return r.label + " " + other; });
+    var col = CATEGORIES[p.cat].color;
+    var initials = p.name.replace(/\(.*?\)/g, "").trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase();
+    el.style.setProperty("--accent", col);
     el.innerHTML =
       "<button class='close' aria-label='Cerrar'>&times;</button>" +
-      "<div class='swatch' style='background:" + CATEGORIES[p.cat].color + "'></div>" +
-      "<h2>" + p.name + "</h2>" +
-      "<div class='meta'>" + (p.role || CATEGORIES[p.cat].label) + " &middot; " + (p.region || "") + "</div>" +
+      "<div class='d-head'>" +
+        "<div class='mono' style='background:linear-gradient(135deg," + col + "," + col + "99)'>" + initials + "</div>" +
+        "<div class='d-title'>" +
+          "<span class='pill' style='background:" + col + "22;color:" + col + ";border-color:" + col + "55'>" + (p.role || CATEGORIES[p.cat].label) + "</span>" +
+          "<h2>" + p.name + "</h2>" +
+          "<div class='meta'>" + (p.region || "") + "</div>" +
+        "</div>" +
+      "</div>" +
       "<div class='big'>" + fmtRange(p) + "</div>" +
-      "<div class='age'>" + (p.d == null ? "Vivo/a &middot; " + age + " anios" : "Vivio " + age + " anios") + "</div>" +
+      "<div class='age'>" + (p.d == null ? "Vivo/a &middot; " + age + " años" : "Vivió " + age + " años") + "</div>" +
       (p.note ? "<p class='note'>" + p.note + "</p>" : "") +
-      (duringEras.length ? "<div class='tag-title'>Vivio durante</div><div class='tags'>" + duringEras.map(function (e) { return "<span>" + e + "</span>"; }).join("") + "</div>" : "") +
+      (duringEras.length ? "<div class='tag-title'>Vivió durante</div><div class='tags'>" + duringEras.map(function (e) { return "<span>" + e + "</span>"; }).join("") + "</div>" : "") +
       (rels.length ? "<div class='tag-title'>Relaciones</div><div class='tags'>" + rels.map(function (r) { return "<span>" + r + "</span>"; }).join("") + "</div>" : "");
     el.classList.add("open");
     el.querySelector(".close").addEventListener("click", function () {
@@ -552,32 +695,28 @@
   function focusPerson(p) {
     selected = p;
     var span = Math.max(deathOf(p) - p.b, 20);
-    view.pxPerYear = (W * 0.4) / span;
-    if (view.pxPerYear > 45) view.pxPerYear = 45;
-    var minPx = (W - 4) / (DATA_MAX - DATA_MIN);
-    if (view.pxPerYear < minPx) view.pxPerYear = minPx;
+    var tpx = clampPx((W * 0.42) / span);
     var center = p.b + (deathOf(p) - p.b) / 2;
-    view.startYear = center - (W / view.pxPerYear) / 2;
-    markLayout();
-    computeLayout();
-    // desplazar verticalmente hasta su carril
-    var r = layout.list.indexOf(p) >= 0 ? p : null;
-    if (r && r._lane != null) {
-      view.offsetY = RULER_H + r._lane * LANE_H - viewportHeight() / 2;
-      clampOffsetY();
-    }
+    var tsy = center - (W / tpx) / 2;
+    // calcular el carril en el zoom de destino
+    var sPx = view.pxPerYear;
+    view.pxPerYear = tpx; computeLayout(); view.pxPerYear = sPx;
+    var toy = RULER_H + ((p._lane || 0) * LANE_H) - viewportHeight() / 2;
+    var maxOy = Math.max(0, contentHeight() - viewportHeight());
+    if (toy < 0) toy = 0; if (toy > maxOy) toy = maxOy;
+    animateTo(tsy, tpx, toy, 650);
     showDetail(p);
-    markDirty();
   }
 
   // ---- Presets de rango -------------------------------------------------
-  function setRange(a, b) {
-    view.pxPerYear = W / (b - a);
-    var minPx = (W - 4) / (DATA_MAX - DATA_MIN);
-    if (view.pxPerYear < minPx) view.pxPerYear = minPx;
-    view.startYear = a;
-    view.offsetY = 0;
-    markLayout();
+  function setRange(a, b, instant) {
+    var tpx = clampPx(W / (b - a));
+    if (instant) {
+      view.pxPerYear = tpx; view.startYear = a; view.offsetY = 0;
+      markLayout();
+    } else {
+      animateTo(a, tpx, 0, 650);
+    }
   }
 
   // ---- UI ---------------------------------------------------------------
@@ -656,9 +795,15 @@
     markLayout();
   }
 
+  function animatedZoom(factor) {
+    var px = W / 2, anchorYear = xToYear(px);
+    var tpx = clampPx(view.pxPerYear * factor);
+    animateTo(anchorYear - px / tpx, tpx, view.offsetY, 350);
+  }
+
   function wireControls() {
-    document.getElementById("zoom-in").addEventListener("click", function () { zoomAt(W / 2, 1.4); });
-    document.getElementById("zoom-out").addEventListener("click", function () { zoomAt(W / 2, 1 / 1.4); });
+    document.getElementById("zoom-in").addEventListener("click", function () { animatedZoom(1.6); });
+    document.getElementById("zoom-out").addEventListener("click", function () { animatedZoom(1 / 1.6); });
     document.querySelectorAll("[data-range]").forEach(function (b) {
       b.addEventListener("click", function () {
         var r = b.getAttribute("data-range").split(",");
@@ -676,9 +821,10 @@
         if (y < DATA_MIN) y = DATA_MIN;
         if (y > DATA_MAX) y = DATA_MAX;
         // si estamos muy alejados, acercamos a un nivel comodo (~150 anios de ancho)
-        if (W / view.pxPerYear > 400) view.pxPerYear = W / 150;
-        centerOnYear(y);
-        markLayout(); // recalcula el nivel de detalle con el nuevo zoom
+        var tpx = view.pxPerYear;
+        if (W / view.pxPerYear > 400) tpx = W / 150;
+        tpx = clampPx(tpx);
+        animateTo(y - (W / tpx) / 2, tpx, 0, 600); // reinicia el scroll vertical
       };
       gy.addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
       var gb = document.getElementById("gotoyear-btn");
@@ -692,7 +838,22 @@
   }
 
   // ---- Bucle de render --------------------------------------------------
-  function frame() {
+  function frame(now) {
+    now = now || performance.now();
+    if (cam) {
+      var t = (now - cam.t0) / cam.dur;
+      if (t >= 1) t = 1;
+      var e = easeInOut(t);
+      view.startYear = cam.sy0 + (cam.sy1 - cam.sy0) * e;
+      view.pxPerYear = cam.px0 + (cam.px1 - cam.px0) * e;
+      view.offsetY = cam.oy0 + (cam.oy1 - cam.oy0) * e;
+      dirtyLayout = true; dirty = true;
+      if (t >= 1) cam = null;
+    }
+    if (introT < 1) {
+      introT = Math.min(1, (now - t0Intro) / 700);
+      dirty = true;
+    }
     if (dirty) { dirty = false; draw(); }
     requestAnimationFrame(frame);
   }
@@ -715,6 +876,7 @@
   window.addEventListener("resize", resize);
   resize();
   // vista inicial: todo el rango
-  setRange(DATA_MIN, DATA_MAX + 10);
-  frame();
+  setRange(DATA_MIN, DATA_MAX + 10, true);
+  t0Intro = performance.now();
+  requestAnimationFrame(frame);
 })();
