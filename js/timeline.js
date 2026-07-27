@@ -642,42 +642,109 @@
   function markDirty() { dirty = true; }
   function markLayout() { dirtyLayout = true; dirty = true; }
 
-  var drag = null;
+  // Gestos con soporte multitáctil (arrastre + pellizco para zoom)
+  var pointers = {};      // id -> {x, y}
+  var gesture = null;     // {mode:'pan'|'pinch', ...}
+  var tapCandidate = null;
+
+  function activeIds() { return Object.keys(pointers); }
+
+  function startGesture() {
+    var ids = activeIds();
+    if (ids.length === 1) {
+      var p = pointers[ids[0]];
+      gesture = { mode: "pan", x: p.x, y: p.y, sy: view.startYear, oy: view.offsetY };
+    } else if (ids.length >= 2) {
+      var a = pointers[ids[0]], b = pointers[ids[1]];
+      var dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      gesture = {
+        mode: "pinch", dist: dist,
+        mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2,
+        px0: view.pxPerYear, sy: view.startYear, oy: view.offsetY
+      };
+    }
+  }
+
   canvas.addEventListener("pointerdown", function (e) {
-    var my = e.offsetY;
-    if (my > H - MINIMAP_H) { minimapJump(e.offsetX, true); return; }
-    drag = { x: e.offsetX, y: e.offsetY, sy: view.startYear, oy: view.offsetY, moved: false };
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener("pointermove", function (e) {
+    cam = null; // cancela cualquier animacion en curso al tocar
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    pointers[e.pointerId] = { x: e.offsetX, y: e.offsetY };
     lastMouse.x = e.offsetX; lastMouse.y = e.offsetY;
+    if (activeIds().length === 1) {
+      if (e.offsetY > H - MINIMAP_H) { draggingMap = true; minimapJump(e.offsetX, true); return; }
+      tapCandidate = { x: e.offsetX, y: e.offsetY, moved: false };
+    } else {
+      tapCandidate = null;
+    }
+    draggingMap = draggingMap && activeIds().length === 1;
+    startGesture();
+  });
+
+  canvas.addEventListener("pointermove", function (e) {
+    if (!pointers[e.pointerId]) {
+      // sin boton/dedo presionado: solo hover con raton
+      if (e.pointerType === "mouse") {
+        lastMouse.x = e.offsetX; lastMouse.y = e.offsetY;
+        if (e.offsetY < RULER_H || e.offsetY > H - MINIMAP_H) { setHover(null); return; }
+        setHover(hitTest(e.offsetX, e.offsetY));
+      }
+      return;
+    }
+    pointers[e.pointerId] = { x: e.offsetX, y: e.offsetY };
+    lastMouse.x = e.offsetX; lastMouse.y = e.offsetY;
+
     if (draggingMap) { minimapJump(e.offsetX, false); return; }
-    if (drag) {
-      var dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
-      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-      view.startYear = drag.sy - dx / view.pxPerYear;
-      view.offsetY = drag.oy - dy;
+
+    var ids = activeIds();
+    if (ids.length >= 2 && gesture && gesture.mode === "pinch") {
+      var a = pointers[ids[0]], b = pointers[ids[1]];
+      var dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var tpx = clampPx(gesture.px0 * (dist / gesture.dist));
+      var anchorYear = gesture.sy + gesture.mx / gesture.px0; // año bajo el centro inicial
+      var prevTier = maxTierForZoom();
+      view.pxPerYear = tpx;
+      view.startYear = anchorYear - mx / tpx;            // zoom + desplazamiento horizontal
+      view.offsetY = gesture.oy - (my - gesture.my);     // desplazamiento vertical
+      clampOffsetY();
+      hideTooltip();
+      if (maxTierForZoom() !== prevTier) markLayout(); else markDirty();
+      return;
+    }
+
+    if (gesture && gesture.mode === "pan") {
+      var dx = e.offsetX - gesture.x, dy = e.offsetY - gesture.y;
+      if (tapCandidate && Math.abs(dx) + Math.abs(dy) > 6) tapCandidate.moved = true;
+      view.startYear = gesture.sy - dx / view.pxPerYear;
+      view.offsetY = gesture.oy - dy;
       clampOffsetY();
       hideTooltip();
       markDirty();
-      return;
     }
-    // hover
-    if (e.offsetY < RULER_H || e.offsetY > H - MINIMAP_H) { setHover(null); return; }
-    var p = hitTest(e.offsetX, e.offsetY);
-    setHover(p);
   });
-  canvas.addEventListener("pointerup", function (e) {
-    draggingMap = false;
-    if (drag && !drag.moved) {
-      var p = hitTest(e.offsetX, e.offsetY);
-      selected = p;
-      showDetail(p);
-      markDirty();
+
+  function endPointer(e) {
+    if (!pointers[e.pointerId] && !draggingMap) return;
+    delete pointers[e.pointerId];
+    try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    var ids = activeIds();
+    if (ids.length === 0) {
+      if (tapCandidate && !tapCandidate.moved && !draggingMap) {
+        selected = hitTest(tapCandidate.x, tapCandidate.y);
+        showDetail(selected);
+        markDirty();
+      }
+      draggingMap = false; gesture = null; tapCandidate = null;
+    } else {
+      tapCandidate = null;
+      startGesture(); // p.ej. de pellizco a un solo dedo
     }
-    drag = null;
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+  canvas.addEventListener("pointerleave", function (e) {
+    if (e.pointerType === "mouse") setHover(null);
   });
-  canvas.addEventListener("pointerleave", function () { setHover(null); });
 
   function setHover(p) {
     if (p === hovered) return;

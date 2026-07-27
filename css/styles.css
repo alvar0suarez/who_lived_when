@@ -203,7 +203,12 @@ body.paper #zoom-controls button, body.paper #count, body.paper #hint { backgrou
 
 /* ---- Escenario ---- */
 #stage { position: relative; flex: 1 1 auto; min-height: 0; }
-#timeline { width: 100%; height: 100%; display: block; cursor: grab; }
+#timeline {
+  width: 100%; height: 100%; display: block; cursor: grab;
+  touch-action: none;              /* gestos gestionados por la app, no por el navegador */
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
 #timeline:active { cursor: grabbing; }
 
 /* ---- Tooltip ---- */
