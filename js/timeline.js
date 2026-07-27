@@ -36,6 +36,33 @@
     humanidades: ["philosophy", "religion", "politics", "history", "writers"]
   };
 
+  // Paletas del lienzo (el cromo HTML se controla por CSS).
+  var THEMES = {
+    dark: {
+      bgTop: "#161821", bgBot: "#0f1016", glow: "rgba(90,120,180,0.06)",
+      grid: "rgba(255,255,255,0.035)", gridMajor: "rgba(255,255,255,0.07)",
+      rulerTop: "#0c0d12", rulerBot: "#12141c", rulerLine: "rgba(255,255,255,0.14)",
+      tickMajor: "rgba(255,255,255,0.35)", tickMinor: "rgba(255,255,255,0.16)",
+      textMajor: "#e6e8f0", textMinor: "#a6abba",
+      label: "#eceef4", labelSel: "#ffffff",
+      boxStroke: "rgba(255,255,255,0.28)", boxBg: "rgba(12,13,18,0.85)", boxText: "rgba(255,255,255,0.65)",
+      relStroke: "rgba(255,255,255,0.3)", relHot: "rgba(255,255,255,0.85)", relGlow: "rgba(255,255,255,0.6)",
+      minimapBg: "#0f1014", eraLabelA: 0.7, eraFillA: [0.11, 0.03], barHi: 0.25, useEraColor: true
+    },
+    paper: {
+      bgTop: "#f2ecdc", bgBot: "#e8e0cb", glow: "rgba(150,120,60,0.05)",
+      grid: "rgba(70,55,30,0.06)", gridMajor: "rgba(70,55,30,0.13)",
+      rulerTop: "#e4dcc6", rulerBot: "#ece5d2", rulerLine: "rgba(0,0,0,0.18)",
+      tickMajor: "rgba(60,50,30,0.5)", tickMinor: "rgba(60,50,30,0.25)",
+      textMajor: "#3a3524", textMinor: "#6d6650",
+      label: "#2a2718", labelSel: "#000000",
+      boxStroke: "rgba(80,60,30,0.4)", boxBg: "rgba(242,236,220,0.92)", boxText: "rgba(70,55,25,0.8)",
+      relStroke: "rgba(60,45,20,0.35)", relHot: "rgba(30,20,5,0.8)", relGlow: "rgba(120,90,40,0.5)",
+      minimapBg: "#e4dcc6", eraLabelA: 0.55, eraFillA: [0.16, 0.05], barHi: 0.35, useEraColor: true
+    }
+  };
+  var TH = THEMES.dark;
+
   var RULER_H = 56;      // alto de la regla superior
   var LANE_H = 28;       // alto de cada carril (etiqueta + barra)
   var BAR_H = 12;        // alto de la barra
@@ -247,13 +274,13 @@
   // Fondo con gradiente ambiental sutil.
   function drawBackground(vpH) {
     var g = ctx.createLinearGradient(0, RULER_H, 0, vpH);
-    g.addColorStop(0, "#161821");
-    g.addColorStop(1, "#0f1016");
+    g.addColorStop(0, TH.bgTop);
+    g.addColorStop(1, TH.bgBot);
     ctx.fillStyle = g;
     ctx.fillRect(0, RULER_H, W, vpH - RULER_H);
     // resplandor central tenue
     var rg = ctx.createRadialGradient(W * 0.5, vpH * 0.35, 0, W * 0.5, vpH * 0.35, Math.max(W, vpH) * 0.7);
-    rg.addColorStop(0, "rgba(90,120,180,0.06)");
+    rg.addColorStop(0, TH.glow);
     rg.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = rg;
     ctx.fillRect(0, RULER_H, W, vpH - RULER_H);
@@ -268,7 +295,7 @@
       var x = yearToX(y);
       if (x > W) break;
       if (x < 0) continue;
-      ctx.strokeStyle = (y % (step * 5) === 0) ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.035)";
+      ctx.strokeStyle = (y % (step * 5) === 0) ? TH.gridMajor : TH.grid;
       ctx.beginPath(); ctx.moveTo(x, RULER_H); ctx.lineTo(x, vpH); ctx.stroke();
     }
   }
@@ -278,20 +305,21 @@
       var x0 = yearToX(e.b), x1 = yearToX(e.d);
       if (x1 < 0 || x0 > W) return;
       var cx0 = Math.max(0, x0), cx1 = Math.min(W, x1);
+      var ecol = TH.useEraColor ? e.color : "#8a7038";
       var g = ctx.createLinearGradient(0, RULER_H, 0, vpH);
-      g.addColorStop(0, withAlpha(e.color, 0.11));
-      g.addColorStop(1, withAlpha(e.color, 0.03));
+      g.addColorStop(0, withAlpha(ecol, TH.eraFillA[0]));
+      g.addColorStop(1, withAlpha(ecol, TH.eraFillA[1]));
       ctx.fillStyle = g;
       ctx.fillRect(cx0, RULER_H, cx1 - cx0, vpH - RULER_H);
       // borde izquierdo suave
       if (x0 >= 0) {
-        ctx.strokeStyle = withAlpha(e.color, 0.35);
+        ctx.strokeStyle = withAlpha(ecol, 0.35);
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x0, RULER_H); ctx.lineTo(x0, vpH); ctx.stroke();
       }
       // etiqueta vertical en la banda
       ctx.save();
-      ctx.fillStyle = withAlpha(e.color, 0.7);
+      ctx.fillStyle = withAlpha(ecol, TH.eraLabelA);
       ctx.font = "700 11px system-ui, sans-serif";
       var lx = Math.max(cx0 + 14, 14);
       ctx.translate(lx, vpH - 14);
@@ -368,7 +396,7 @@
       ctx.fill();
       // brillo superior
       if (!dim && bw > 6) {
-        ctx.globalAlpha = dim ? 0.1 : 0.25;
+        ctx.globalAlpha = TH.barHi;
         ctx.fillStyle = "#ffffff";
         rr(x0 + 1, barY + 1, bw - 2, 2.5, 1.5);
         ctx.fill();
@@ -378,7 +406,7 @@
       if (isSel || isHov) ctx.restore();
 
       if (isSel || isHov) {
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = TH.labelSel;
         ctx.lineWidth = 1.5;
         rr(x0, barY, bw, BAR_H, 3.5);
         ctx.stroke();
@@ -388,7 +416,7 @@
       var lx = Math.max(x0, 2);
       ctx.font = nameFont;
       ctx.globalAlpha = dim ? 0.4 : 1;
-      ctx.fillStyle = (isSel || isHov) ? "#ffffff" : "#eceef4";
+      ctx.fillStyle = (isSel || isHov) ? TH.labelSel : TH.label;
       ctx.textBaseline = "alphabetic";
       ctx.fillText(p.name, lx, rowTop + 11);
       var nameW = measure(p.name, nameFont);
@@ -414,7 +442,7 @@
       if (xs.length < 2) return; // nada visible del grupo
       var minX = Math.min.apply(null, xs) - 8, maxX = Math.max.apply(null, xs) + 8;
       var minY = Math.min.apply(null, ys) - 6, maxY = Math.max.apply(null, ys) + 4;
-      ctx.strokeStyle = "rgba(255,255,255,0.28)";
+      ctx.strokeStyle = TH.boxStroke;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 3]);
       rr(minX, minY, maxX - minX, maxY - minY, 6);
@@ -423,9 +451,9 @@
       // etiqueta del grupo
       var label = g.name.toUpperCase();
       var lw = measure(label, "700 10px system-ui, sans-serif") + 10;
-      ctx.fillStyle = "rgba(20,21,26,0.9)";
+      ctx.fillStyle = TH.boxBg;
       ctx.fillRect(minX + 6, minY - 7, lw, 14);
-      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.fillStyle = TH.boxText;
       ctx.fillText(label, minX + 11, minY + 3);
     });
   }
@@ -442,8 +470,8 @@
       if (bx < ax) { var t = ra; ra = rb; rb = t; ax = ra.x + ra.w; ay = ra.y + LABEL_LIFT + BAR_H / 2; bx = rb.x; by = rb.y + LABEL_LIFT + BAR_H / 2; }
       var midx = (ax + bx) / 2;
       var hot = focusName && (rel.a === focusName || rel.b === focusName);
-      ctx.strokeStyle = hot ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)";
-      if (hot) { ctx.save(); ctx.shadowColor = "rgba(255,255,255,0.6)"; ctx.shadowBlur = 8; }
+      ctx.strokeStyle = hot ? TH.relHot : TH.relStroke;
+      if (hot) { ctx.save(); ctx.shadowColor = TH.relGlow; ctx.shadowBlur = 8; }
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.bezierCurveTo(midx, ay, midx, by, bx, by);
@@ -452,9 +480,9 @@
       if (rel.label) {
         var lw = measure(rel.label, "italic 10px system-ui, sans-serif");
         var mx = midx - lw / 2, my = (ay + by) / 2;
-        ctx.fillStyle = "rgba(12,13,18,0.85)";
+        ctx.fillStyle = TH.boxBg;
         ctx.fillRect(mx - 3, my - 11, lw + 6, 13);
-        ctx.fillStyle = hot ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)";
+        ctx.fillStyle = hot ? TH.relHot : TH.relStroke;
         ctx.fillText(rel.label, mx, my - 1);
       }
     });
@@ -462,11 +490,11 @@
 
   function drawRuler() {
     var g = ctx.createLinearGradient(0, 0, 0, RULER_H);
-    g.addColorStop(0, "#0c0d12");
-    g.addColorStop(1, "#12141c");
+    g.addColorStop(0, TH.rulerTop);
+    g.addColorStop(1, TH.rulerBot);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, RULER_H);
-    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.strokeStyle = TH.rulerLine;
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, RULER_H - 0.5); ctx.lineTo(W, RULER_H - 0.5); ctx.stroke();
 
@@ -478,9 +506,9 @@
       if (x > W) break;
       if (x < 0) continue;
       var major = (y % (step * 5) === 0);
-      ctx.strokeStyle = major ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.16)";
+      ctx.strokeStyle = major ? TH.tickMajor : TH.tickMinor;
       ctx.beginPath(); ctx.moveTo(x, RULER_H - (major ? 14 : 9)); ctx.lineTo(x, RULER_H); ctx.stroke();
-      ctx.fillStyle = major ? "#e6e8f0" : "#a6abba";
+      ctx.fillStyle = major ? TH.textMajor : TH.textMinor;
       ctx.font = (major ? "700 12px " : "500 11px ") + "system-ui, sans-serif";
       var lbl = fmtYear(y);
       ctx.fillText(lbl, x - measure(lbl, ctx.font) / 2, RULER_H - 20);
@@ -518,9 +546,9 @@
 
   function drawMinimap() {
     var top = H - MINIMAP_H;
-    ctx.fillStyle = "#0f1014";
+    ctx.fillStyle = TH.minimapBg;
     ctx.fillRect(0, top, W, MINIMAP_H);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = TH.rulerLine;
     ctx.beginPath(); ctx.moveTo(0, top + 0.5); ctx.lineTo(W, top + 0.5); ctx.stroke();
 
     // densidad: un tick por persona segun su categoria
@@ -534,7 +562,7 @@
     ctx.globalAlpha = 1;
 
     // etiquetas de siglos
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillStyle = TH.textMinor;
     ctx.font = "10px system-ui, sans-serif";
     for (var yy = -1000; yy <= 2000; yy += 500) {
       var mx = yearToMapX(yy);
@@ -544,10 +572,10 @@
     // rectangulo del viewport
     var vx0 = yearToMapX(view.startYear);
     var vx1 = yearToMapX(xToYear(W));
-    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.strokeStyle = TH.textMajor;
     ctx.lineWidth = 1.5;
     ctx.strokeRect(vx0, top + 3, Math.max(4, vx1 - vx0), MINIMAP_H - 6);
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillStyle = withAlpha(TH.textMajor, 0.1);
     ctx.fillRect(vx0, top + 3, Math.max(4, vx1 - vx0), MINIMAP_H - 6);
   }
 
@@ -795,6 +823,14 @@
     markLayout();
   }
 
+  function setTheme(name) {
+    TH = THEMES[name] || THEMES.dark;
+    document.body.classList.toggle("paper", name === "paper");
+    var btn = document.getElementById("theme-btn");
+    if (btn) btn.textContent = name === "paper" ? "🌙 Oscuro" : "☀️ Papel";
+    markDirty();
+  }
+
   function animatedZoom(factor) {
     var px = W / 2, anchorYear = xToYear(px);
     var tpx = clampPx(view.pxPerYear * factor);
@@ -812,6 +848,10 @@
     });
     document.querySelectorAll("[data-preset]").forEach(function (b) {
       b.addEventListener("click", function () { applyCatPreset(b.getAttribute("data-preset")); });
+    });
+    var tb = document.getElementById("theme-btn");
+    if (tb) tb.addEventListener("click", function () {
+      setTheme(document.body.classList.contains("paper") ? "dark" : "paper");
     });
     var gy = document.getElementById("gotoyear");
     if (gy) {

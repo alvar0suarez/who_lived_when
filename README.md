@@ -48,6 +48,8 @@ Sobre esa base se reproduce la "lógica" del póster original:
 - **Presets** de época (Antigüedad, Edad Media, Renacimiento…).
 - **Minimapa** inferior: densidad de personas + rectángulo de la vista actual;
   haz clic para saltar a cualquier punto de 4000 años.
+- **Dos temas**: oscuro (premium) y claro tipo papel (fiel al póster),
+  conmutables con el botón de la barra superior.
 
 ## Categorías
 

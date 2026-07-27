@@ -26,6 +26,36 @@ html, body {
 body { display: flex; flex-direction: column; }
 #topbar, #legend-row { flex: none; }
 
+/* ---- Tema claro tipo papel (cromo HTML) ---- */
+body.paper {
+  --bg: #ece4d0;
+  --panel: #f5efe0;
+  --panel-2: #ede5d0;
+  --line: rgba(60, 45, 20, 0.14);
+  --line-2: rgba(60, 45, 20, 0.28);
+  --text: #2c2718;
+  --muted: #7a715a;
+  --accent: #b5762a;
+}
+body.paper #topbar { background: linear-gradient(180deg, #e7dfc9, #efe8d6); }
+body.paper .brand-big { background: linear-gradient(90deg, #2c2718, #6b5a34); -webkit-background-clip: text; background-clip: text; }
+body.paper #legend-row { background: #e7dfc9; }
+body.paper #search { background-color: var(--panel); }
+body.paper #tooltip, body.paper #detail { background: var(--panel); }
+body.paper #zoom-controls button, body.paper #count, body.paper #hint { background: rgba(245, 239, 224, 0.85); }
+#theme-btn {
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: .15s;
+}
+#theme-btn:hover { border-color: var(--accent); background: var(--panel-2); }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--panel-2); border-radius: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
