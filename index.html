@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>El gran mapa de quién vivió cuándo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-small">EL GRAN MAPA DE</span>
+      <span class="brand-big">¿QUIÉN VIVIÓ CUÁNDO?</span>
+    </div>
+
+    <div class="search-wrap">
+      <input id="search" type="text" placeholder="Buscar persona… (ej. Newton, Cleopatra)" autocomplete="off" />
+      <div id="suggest"></div>
+    </div>
+
+    <div class="ranges">
+      <button data-range="-800,100">Antigüedad</button>
+      <button data-range="400,1500">Edad Media</button>
+      <button data-range="1400,1650">Renacimiento</button>
+      <button data-range="1650,1850">Ilustración</button>
+      <button data-range="1850,2026">Moderna</button>
+      <button data-range="-1900,2036">Todo</button>
+    </div>
+  </header>
+
+  <div id="legend"></div>
+
+  <main id="stage">
+    <canvas id="timeline"></canvas>
+    <div id="tooltip"></div>
+    <aside id="detail"></aside>
+
+    <div id="zoom-controls">
+      <button id="zoom-in" aria-label="Acercar">+</button>
+      <button id="zoom-out" aria-label="Alejar">−</button>
+    </div>
+
+    <div id="count"></div>
+    <div id="hint">Arrastra para moverte · rueda para zoom · clic en una barra para el detalle · minimapa abajo para saltar</div>
+  </main>
+
+  <script src="data/people.js"></script>
+  <script src="data/context.js"></script>
+  <script src="js/timeline.js"></script>
+</body>
+</html>
