@@ -18,6 +18,11 @@
       <div id="suggest"></div>
     </div>
 
+    <div class="goto">
+      <input id="gotoyear" type="text" inputmode="numeric" placeholder="Año… (ej. 1492, 300 a.C.)" />
+      <button id="gotoyear-btn">Ir</button>
+    </div>
+
     <div class="ranges">
       <button data-range="-800,100">Antigüedad</button>
       <button data-range="400,1500">Edad Media</button>
@@ -28,7 +33,15 @@
     </div>
   </header>
 
-  <div id="legend"></div>
+  <div id="legend-row">
+    <div class="presets">
+      <span class="presets-label">Filtros:</span>
+      <button data-preset="humanidades">Humanidades</button>
+      <button data-preset="all">Todas</button>
+      <button data-preset="none">Ninguna</button>
+    </div>
+    <div id="legend"></div>
+  </div>
 
   <main id="stage">
     <canvas id="timeline"></canvas>

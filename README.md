@@ -38,12 +38,23 @@ Sobre esa base se reproduce la "lógica" del póster original:
 
 - **Arrastrar** para desplazarte (tiempo y verticalmente).
 - **Rueda del ratón** para hacer zoom (mantén *Shift* para desplazar vertical).
+- **Ir al año**: escribe un año (`1492`, `300 a.C.`) y salta a él con un ancho
+  cómodo (~150 años).
 - **Clic** en una barra abre su ficha de detalle.
 - **Buscador** con autocompletado: selecciona y salta a esa persona.
-- **Filtros** de categoría (leyenda) para encender/apagar grupos.
+- **Filtros** de categoría (leyenda) para encender/apagar grupos, más atajos
+  rápidos: **Humanidades** (filosofía, religión, política, historia,
+  literatura), **Todas** y **Ninguna**.
 - **Presets** de época (Antigüedad, Edad Media, Renacimiento…).
 - **Minimapa** inferior: densidad de personas + rectángulo de la vista actual;
   haz clic para saltar a cualquier punto de 4000 años.
+
+## Categorías
+
+Filosofía · Religión · Política · Militares · Historia y sociedad ·
+Literatura · Ciencia · Arte · Música · Exploración · Negocios ·
+Cine y espectáculo · Deportes. La semilla incluye ~500 personas con foco en
+pensamiento, historia, política, literatura y religión.
 
 ## Cómo ejecutarlo
 
@@ -73,13 +84,14 @@ data/context.js     Eras, eventos, cajas temáticas y relaciones
 Añade una entrada a `data/people.js`:
 
 ```js
-{ name: "Nombre", cat: "thinkers", b: 1452, d: 1519,
+{ name: "Nombre", cat: "philosophy", b: 1452, d: 1519,
   tier: 1, region: "Italia", note: "Una línea de contexto",
   role: "inventor", approx: false }
 ```
 
-- `cat`: una de `artists · business · thinkers · entertainers · athletes ·
-  writers · leaders`.
+- `cat`: una de `philosophy · religion · politics · military · history ·
+  writers · science · art · music · exploration · business · entertainment ·
+  sports`.
 - `b` / `d`: año de nacimiento / muerte (negativo = a.C.; `d: null` = sigue
   viva).
 - `tier`: 1 (siempre visible) … 4 (solo con mucho zoom).

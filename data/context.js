@@ -40,6 +40,14 @@ window.WLW_EVENTS = [
 
 window.WLW_GROUPS = [
   {
+    name: "Filosofos griegos",
+    members: ["Socrates", "Platon", "Aristoteles"]
+  },
+  {
+    name: "Revolucion cientifica",
+    members: ["Nicolas Copernico", "Galileo Galilei", "Johannes Kepler", "Isaac Newton"]
+  },
+  {
     name: "Edad de Oro de la Pirateria",
     members: ["Henry Morgan", "Captain Kidd", "Calico Jack", "Anne Bonny", "Barbanegra"]
   },
@@ -48,8 +56,16 @@ window.WLW_GROUPS = [
     members: ["George Washington", "Benjamin Franklin", "Thomas Jefferson", "John Adams", "Alexander Hamilton"]
   },
   {
-    name: "Filosofos griegos",
-    members: ["Socrates", "Platon", "Aristoteles"]
+    name: "Impresionistas",
+    members: ["Edouard Manet", "Claude Monet", "Auguste Renoir", "Paul Cezanne"]
+  },
+  {
+    name: "Existencialistas",
+    members: ["Jean-Paul Sartre", "Simone de Beauvoir", "Albert Camus"]
+  },
+  {
+    name: "The Beatles",
+    members: ["John Lennon", "Paul McCartney"]
   }
 ];
 
@@ -57,7 +73,10 @@ window.WLW_RELATIONS = [
   { a: "Socrates", b: "Platon", label: "maestro de" },
   { a: "Platon", b: "Aristoteles", label: "maestro de" },
   { a: "Aristoteles", b: "Alejandro Magno", label: "tutor de" },
+  { a: "Karl Marx", b: "Friedrich Engels", label: "colaboradores" },
+  { a: "Jean-Paul Sartre", b: "Simone de Beauvoir", label: "pareja" },
   { a: "Marie Curie", b: "Albert Einstein", label: "amigos" },
   { a: "Steve Jobs", b: "Bill Gates", label: "rivales" },
+  { a: "John Lennon", b: "Paul McCartney", label: "companeros" },
   { a: "Calico Jack", b: "Anne Bonny", label: "companeros" }
 ];

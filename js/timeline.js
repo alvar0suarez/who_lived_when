@@ -16,13 +16,24 @@
   var CURRENT_YEAR = 2026;
 
   var CATEGORIES = {
-    artists:      { label: "Artistas",           color: "#59b6e6" },
-    business:     { label: "Negocios e industria", color: "#f2b705" },
-    thinkers:     { label: "Pensadores",         color: "#8dc63f" },
-    entertainers: { label: "Espectaculo",        color: "#ef4b3c" },
-    athletes:     { label: "Atletas",            color: "#a06cd5" },
-    writers:      { label: "Escritores",         color: "#17b3b3" },
-    leaders:      { label: "Lideres y villanos", color: "#8a8f99" }
+    philosophy:    { label: "Filosofia",        color: "#8dc63f" },
+    religion:      { label: "Religion",         color: "#d9a441" },
+    politics:      { label: "Politica",         color: "#9aa0aa" },
+    military:      { label: "Militares",        color: "#a8553a" },
+    history:       { label: "Historia y sociedad", color: "#7b8cd4" },
+    writers:       { label: "Literatura",       color: "#1fb6b6" },
+    science:       { label: "Ciencia",          color: "#4ba3e3" },
+    art:           { label: "Arte",             color: "#e56ba6" },
+    music:         { label: "Musica",           color: "#ef5350" },
+    exploration:   { label: "Exploracion",      color: "#57c08a" },
+    business:      { label: "Negocios",         color: "#f2c800" },
+    entertainment: { label: "Cine y espectaculo", color: "#b07cd6" },
+    sports:        { label: "Deportes",         color: "#e0803a" }
+  };
+
+  // Filtros rapidos: conjuntos de categorias
+  var CAT_PRESETS = {
+    humanidades: ["philosophy", "religion", "politics", "history", "writers"]
   };
 
   var RULER_H = 56;      // alto de la regla superior
@@ -576,6 +587,7 @@
       var c = CATEGORIES[k];
       var b = document.createElement("button");
       b.className = "cat active";
+      b.setAttribute("data-cat", k);
       b.innerHTML = "<span class='dot' style='background:" + c.color + "'></span>" + c.label;
       b.addEventListener("click", function () {
         active[k] = !active[k];
@@ -613,6 +625,37 @@
     });
   }
 
+  // Centra la vista en un anio manteniendo el zoom actual.
+  function centerOnYear(y) {
+    view.startYear = y - (W / view.pxPerYear) / 2;
+    markDirty();
+  }
+
+  // Interpreta textos como "1492", "-500", "500 a.C.", "323 aC".
+  function parseYear(txt) {
+    if (!txt) return null;
+    var s = txt.toLowerCase().trim();
+    var bce = /a\.?\s*c/.test(s);
+    var n = parseInt(s.replace(/[^0-9-]/g, ""), 10);
+    if (isNaN(n)) return null;
+    if (bce && n > 0) n = -n;
+    return n;
+  }
+
+  function applyCatPreset(mode) {
+    Object.keys(CATEGORIES).forEach(function (k) {
+      if (mode === "all") active[k] = true;
+      else if (mode === "none") active[k] = false;
+      else active[k] = CAT_PRESETS[mode].indexOf(k) !== -1;
+    });
+    // refleja el estado en la leyenda
+    document.querySelectorAll("#legend .cat").forEach(function (b) {
+      var k = b.getAttribute("data-cat");
+      b.classList.toggle("active", !!active[k]);
+    });
+    markLayout();
+  }
+
   function wireControls() {
     document.getElementById("zoom-in").addEventListener("click", function () { zoomAt(W / 2, 1.4); });
     document.getElementById("zoom-out").addEventListener("click", function () { zoomAt(W / 2, 1 / 1.4); });
@@ -622,6 +665,25 @@
         setRange(parseInt(r[0], 10), parseInt(r[1], 10));
       });
     });
+    document.querySelectorAll("[data-preset]").forEach(function (b) {
+      b.addEventListener("click", function () { applyCatPreset(b.getAttribute("data-preset")); });
+    });
+    var gy = document.getElementById("gotoyear");
+    if (gy) {
+      var go = function () {
+        var y = parseYear(gy.value);
+        if (y == null) return;
+        if (y < DATA_MIN) y = DATA_MIN;
+        if (y > DATA_MAX) y = DATA_MAX;
+        // si estamos muy alejados, acercamos a un nivel comodo (~150 anios de ancho)
+        if (W / view.pxPerYear > 400) view.pxPerYear = W / 150;
+        centerOnYear(y);
+        markLayout(); // recalcula el nivel de detalle con el nuevo zoom
+      };
+      gy.addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+      var gb = document.getElementById("gotoyear-btn");
+      if (gb) gb.addEventListener("click", go);
+    }
   }
 
   function updateCount() {
